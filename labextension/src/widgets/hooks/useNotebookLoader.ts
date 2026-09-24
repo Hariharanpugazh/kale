@@ -186,6 +186,15 @@ export function useNotebookLoader({
       const commands = new Commands(notebook, kernel);
       await notebook.sessionContext.ready;
 
+      // Apply the notebook's saved metadata (pipeline name, description,
+      // experiment) to the panel FIRST, before ANY KFP call — including
+      // getKfpUiHost below. This metadata is stored in the notebook file and is
+      // independent of KFP, so it must be shown immediately regardless of KFP
+      // state (loading, disconnected, or connected). Any KFP await before this
+      // point would delay or block the fields from filling in (#965).
+      const notebookMetadata = NotebookUtils.getMetaData(notebook, metadataKey);
+      applySavedMetadata(notebook, notebookMetadata, experimentsRef.current);
+
       const [kfpUiHost, deployPanelCustomLinks] = await Promise.all([
         commands.getKfpUiHost(),
         commands.getDeployPanelCustomLinks(),
@@ -194,16 +203,6 @@ export function useNotebookLoader({
       setKfpUiHost(resolvedKfpUiHost);
       setDeployPanelCustomLinks(deployPanelCustomLinks);
       DeployUtils.logLinksHint(resolvedKfpUiHost, deployPanelCustomLinks);
-
-      const notebookMetadata = NotebookUtils.getMetaData(notebook, metadataKey);
-
-      // Apply the notebook's saved metadata (pipeline name, description,
-      // experiment) to the panel FIRST, before any KFP call. This metadata is
-      // stored in the notebook file and is independent of KFP, so it must be
-      // shown immediately regardless of KFP state (loading, disconnected, or
-      // connected). Previously it was applied only after awaiting getExperiments,
-      // which left the fields blank while KFP was loading or unreachable (#965).
-      applySavedMetadata(notebook, notebookMetadata, experimentsRef.current);
 
       if (backend) {
         setNamespace(await commands.getNamespace());
